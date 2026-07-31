@@ -1006,6 +1006,67 @@ describe('BasketProvider hooks', () => {
             expect(renderCount).toBe(rendersAfterFirstWrite);
         });
 
+        it('upgrades a same-revision write that adds approachingDiscounts (shape-aware tie-break)', () => {
+            // A down-shaped mutation response and the expanded getBasket read share the same
+            // lastModified. A plain equality dedup would drop the read and lose approachingDiscounts,
+            // so a same-revision write that ADDS the field must be allowed through.
+            const downShaped: ShopperBasketsV2.schemas['Basket'] = {
+                basketId: 'basket-123',
+                lastModified: '2026-05-17T12:00:00.000Z',
+                productItems: [{ productId: 'p1', quantity: 1 }],
+            };
+            const expanded: ShopperBasketsV2.schemas['Basket'] = {
+                ...downShaped,
+                approachingDiscounts: [{ type: 'order', conditionThreshold: 100, merchandiseTotal: 90 }],
+            };
+
+            const Consumer = () => ({ basket: useBasket(), update: useBasketUpdater() });
+            const { result } = renderHook(() => Consumer(), { wrapper: wrapperWithProps({}) });
+
+            act(() => {
+                result.current.update(downShaped);
+            });
+            expect(result.current.basket).toBe(downShaped);
+
+            // Same lastModified, but adds approachingDiscounts → must upgrade rather than dedup away.
+            act(() => {
+                result.current.update(expanded);
+            });
+            expect(result.current.basket).toBe(expanded);
+        });
+
+        it('still dedups a same-revision write once approachingDiscounts is present', () => {
+            // The tie-break only fires when the field is being ADDED. Once context already carries
+            // approachingDiscounts, a same-revision write with the field must still dedup — otherwise
+            // the guard would let every equal-revision write through.
+            const expanded: ShopperBasketsV2.schemas['Basket'] = {
+                basketId: 'basket-123',
+                lastModified: '2026-05-17T12:00:00.000Z',
+                productItems: [{ productId: 'p1', quantity: 1 }],
+                approachingDiscounts: [{ type: 'order', conditionThreshold: 100, merchandiseTotal: 90 }],
+            };
+            const expandedDup: ShopperBasketsV2.schemas['Basket'] = { ...expanded };
+
+            let renderCount = 0;
+            const Consumer = () => {
+                renderCount += 1;
+                useBasket();
+                return useBasketUpdater();
+            };
+            const { result } = renderHook(() => Consumer(), { wrapper: wrapperWithProps({}) });
+
+            act(() => {
+                result.current(expanded);
+            });
+            const rendersAfterFirstWrite = renderCount;
+
+            act(() => {
+                result.current(expandedDup);
+            });
+
+            expect(renderCount).toBe(rendersAfterFirstWrite);
+        });
+
         it('does write when lastModified changes', () => {
             const basketA: ShopperBasketsV2.schemas['Basket'] = {
                 basketId: 'basket-123',

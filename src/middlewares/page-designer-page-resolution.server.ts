@@ -20,6 +20,7 @@ import {
     RequiredError,
     type ManifestStorage,
     type PageManifest,
+    type ComponentManifest,
     type IdentifierType,
     type ContextResolver,
     type SiteManifest,
@@ -79,7 +80,7 @@ const PAGE_MANIFEST_HIT_HEADER = 'x-page-manifest-hit';
  */
 const PAGE_RESOLUTION_DEBUG = process.env.SFCC_PD_PAGE_RESOLUTION_DEBUG === 'true';
 
-type ManifestType = 'page' | 'site';
+type ManifestType = 'page' | 'component' | 'site';
 type ManifestValue = {
     compressedData: string;
 };
@@ -293,6 +294,10 @@ interface Metrics {
     pageManifestRetrievalEnd?: number;
     pageManifestUnpackStart?: number;
     pageManifestUnpackEnd?: number;
+    componentManifestRetrievalStart?: number;
+    componentManifestRetrievalEnd?: number;
+    componentManifestUnpackStart?: number;
+    componentManifestUnpackEnd?: number;
     siteManifestRetrievalStart?: number;
     siteManifestRetrievalEnd?: number;
     siteManifestUnpackStart?: number;
@@ -320,6 +325,10 @@ interface Metrics {
      * full object graph after parse.
      */
     pageManifestUncompressedBytes?: number;
+    /** Compressed byte size of the component manifest. See {@link pageManifestCompressedBytes}. */
+    componentManifestCompressedBytes?: number;
+    /** Uncompressed byte size of the component manifest. See {@link pageManifestUncompressedBytes}. */
+    componentManifestUncompressedBytes?: number;
     /** Compressed byte size of the site manifest. See {@link pageManifestCompressedBytes}. */
     siteManifestCompressedBytes?: number;
     /** Uncompressed byte size of the site manifest. See {@link pageManifestUncompressedBytes}. */
@@ -330,6 +339,8 @@ interface Metrics {
      * byte counts so it's clear which key produced the observed payload.
      */
     pageManifestKey?: string;
+    /** Data Store key the component manifest was looked up under. See {@link pageManifestKey}. */
+    componentManifestKey?: string;
     /** Data Store key the site manifest was looked up under. See {@link pageManifestKey}. */
     siteManifestKey?: string;
     resolutionParameters?: {
@@ -831,25 +842,40 @@ function getPageManifestStorage({
     metrics: Metrics;
     logger: Logger;
 }): ManifestStorage {
-    async function getManifest(): Promise<SiteManifest | null>;
-    async function getManifest(id: string): Promise<PageManifest | null>;
-    async function getManifest(id?: string): Promise<PageManifest | SiteManifest | null> {
-        const key = getStorageKey(siteId, id);
-        const manifestType = id ? 'page' : 'site';
-
-        if (manifestType === 'page') {
-            metrics.pageManifestKey = key;
-        } else {
-            metrics.siteManifestKey = key;
-        }
-
+    async function getManifest(kind: 'page', id: string): Promise<PageManifest | null>;
+    async function getManifest(kind: 'component', id: string): Promise<ComponentManifest | null>;
+    async function getManifest(kind: 'site'): Promise<SiteManifest | null>;
+    async function getManifest(
+        kind: ManifestType,
+        id?: string
+    ): Promise<PageManifest | ComponentManifest | SiteManifest | null> {
         try {
-            const result = await getAndUnpackDataStoreEntry(dataStore, key, manifestType, metrics);
+            let key: string;
+            if (kind === 'site') {
+                key = getStorageKey(siteId, 'site');
+                metrics.siteManifestKey = key;
+            } else {
+                // Overloads guarantee `id` is supplied for non-'site' kinds; the
+                // explicit check is here so TS can narrow without a non-null assertion.
+                // The throw is caught by the surrounding try/catch and routed through
+                // `onError`, so the request falls back to SCAPI rather than failing.
+                if (id == null) {
+                    throw new Error(`getManifest: id is required for kind '${kind}'`);
+                }
+                key = getStorageKey(siteId, kind, id);
+                if (kind === 'page') {
+                    metrics.pageManifestKey = key;
+                } else {
+                    metrics.componentManifestKey = key;
+                }
+            }
+
+            const result = await getAndUnpackDataStoreEntry(dataStore, key, kind, metrics);
             // Manifests are large structured payloads — too noisy for the
             // standard debug stream. Gated behind SFCC_PD_PAGE_RESOLUTION_DEBUG
             // so it's only emitted when troubleshooting.
             if (PAGE_RESOLUTION_DEBUG) {
-                logger.debug(`[PageResolutionMiddleware] ${manifestType} manifest from KVS`, {
+                logger.debug(`[PageResolutionMiddleware] ${kind} manifest from KVS`, {
                     key,
                     manifest: result,
                 });
@@ -863,8 +889,9 @@ function getPageManifestStorage({
     }
 
     return {
-        getPageManifest: (id: string) => getManifest(id),
-        getSiteManifest: () => getManifest(),
+        getPageManifest: (id: string) => getManifest('page', id),
+        getComponentManifest: (id: string) => getManifest('component', id),
+        getSiteManifest: () => getManifest('site'),
     };
 }
 
@@ -879,7 +906,7 @@ async function getAndUnpackDataStoreEntry(
     key: string,
     manifestType: ManifestType,
     metrics: Metrics
-): Promise<PageManifest | SiteManifest> {
+): Promise<PageManifest | ComponentManifest | SiteManifest> {
     metrics[`${manifestType}ManifestRetrievalStart`] = performance.now();
 
     let entry: { value?: ManifestValue } | undefined;
@@ -939,7 +966,7 @@ async function getAndUnpackDataStoreEntry(
 
         metrics[`${manifestType}ManifestUncompressedBytes`] = inflatedBytes;
 
-        return JSON.parse(Buffer.concat(chunks).toString('utf-8')) as PageManifest | SiteManifest;
+        return JSON.parse(Buffer.concat(chunks).toString('utf-8')) as PageManifest | ComponentManifest | SiteManifest;
     } catch (error: unknown) {
         throw new DataStoreEntryUnpackError(key, error);
     } finally {
@@ -972,15 +999,24 @@ function sanitizeKeySegment(value: string): string {
 }
 
 /**
- * Returns the Data Store key for a page or site manifest.
+ * Returns the Data Store key for a page, component, or site manifest.
  *
- * Both `siteId` and `pageId` are sanitized via {@link sanitizeKeySegment}
+ * Both `siteId` and `id` are sanitized via {@link sanitizeKeySegment}
  * before inclusion in the key, ensuring the key only contains characters
  * in `[A-Za-z0-9._-]` regardless of the input values.
  */
-function getStorageKey(siteId: string, pageId?: string): string {
+function getStorageKey(siteId: string, kind: 'page' | 'component', id: string): string;
+function getStorageKey(siteId: string, kind: 'site'): string;
+function getStorageKey(siteId: string, kind: ManifestType, id?: string): string {
     const safeSiteId = sanitizeKeySegment(siteId);
-    return pageId ? `page-manifest_${safeSiteId}_${sanitizeKeySegment(pageId)}` : `site-manifest_${safeSiteId}`;
+    if (kind === 'site') return `site-manifest_${safeSiteId}`;
+    // Overloads guarantee `id` is supplied for non-'site' kinds; the explicit
+    // check is here so TS can narrow without a non-null assertion. Caught by
+    // the surrounding try/catch in `getManifest` and routed through `onError`.
+    if (id == null) {
+        throw new Error(`getStorageKey: id is required for kind '${kind}'`);
+    }
+    return `${kind}-manifest_${safeSiteId}_${sanitizeKeySegment(id)}`;
 }
 
 /**

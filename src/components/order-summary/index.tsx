@@ -49,6 +49,9 @@ import { routes } from '@/route-paths';
  *
  * @interface OrderSummaryProps
  * @property {OrderSummaryBasket} basket - The basket or order containing items and totals (cart or order details)
+ * @property {'cart' | 'checkout'} [surface] - Selects the surface-specific extension slot rendered below the
+ *   heading (`sfcc.cart.orderSummary.body.before` or `sfcc.checkout.orderSummary.body.before`). Omit to expose
+ *   neither slot (e.g. the mobile accordion and order-details).
  * @property {boolean} [showPromoCodeForm] - Whether to display the promo code form
  * @property {boolean} [showCartItems] - Whether to display the cart items accordion
  * @property {boolean} [showHeading] - Whether to display the "Order Summary" heading
@@ -68,6 +71,7 @@ import { routes } from '@/route-paths';
  */
 interface OrderSummaryProps {
     basket: OrderSummaryBasket;
+    surface?: 'cart' | 'checkout';
     showPromoCodeForm?: boolean;
     showCartItems?: boolean;
     showHeading?: boolean;
@@ -348,6 +352,7 @@ export default function OrderSummary({
     onSelectBonusProducts,
     className,
     inventoryValidation,
+    surface,
 }: OrderSummaryProps): ReactElement {
     const { t, i18n } = useTranslation('cart');
     const { currency } = useSite();
@@ -380,6 +385,12 @@ export default function OrderSummary({
     // Summary content - shared between mobile accordion and desktop card
     const summaryContent = (
         <div className="space-y-2" role="region" {...summaryRegionAccessibilityProps}>
+            {/*
+             * Surface-specific extension slot below the heading. `targetId` stays a static literal (the
+             * build-time target transform matches on it); `surface` only gates the render at runtime.
+             */}
+            {surface === 'cart' && <UITarget targetId="sfcc.cart.orderSummary.body.before" />}
+            {surface === 'checkout' && <UITarget targetId="sfcc.checkout.orderSummary.body.before" />}
             <SummaryBodyContent
                 basket={basket}
                 showCartItems={showCartItems}

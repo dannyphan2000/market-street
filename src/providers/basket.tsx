@@ -427,7 +427,21 @@ export const useBasketUpdater = (): ((basket?: ShopperBasketsV2.schemas['Basket'
                 // Dedup: Skip the update, when called with a defined basket whose SCAPI-set `lastModified` matches
                 // the basket already in context. The undefined-basket path (clear-and-rehydrate) is unaffected —
                 // callers that want to wipe `current` while keeping `hydrated: true` still work.
-                if (basket?.lastModified && prev?.current?.lastModified === basket.lastModified && prev?.hydrated) {
+                //
+                // Shape-aware tie-break: a down-shaped mutation response and the expanded `getBasket` read
+                // share the same `lastModified`, so a plain equality dedup would drop the read and lose
+                // `approachingDiscounts`. Let a same-revision write that ADDS the field upgrade the shape;
+                // otherwise skip the redundant same-revision write (stale-clobber protection unchanged).
+                const upgradesApproachingDiscounts =
+                    basket?.approachingDiscounts !== undefined &&
+                    prev?.current?.approachingDiscounts === undefined &&
+                    basket.lastModified === prev?.current?.lastModified;
+                if (
+                    basket?.lastModified &&
+                    prev?.current?.lastModified === basket.lastModified &&
+                    prev?.hydrated &&
+                    !upgradesApproachingDiscounts
+                ) {
                     return prev;
                 }
                 return {

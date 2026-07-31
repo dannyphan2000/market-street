@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { registry } from '@/lib/page-designer/registry';
+import { registry } from "@/lib/page-designer/registry";
 
 // STATIC_REGISTRY_START
 
@@ -26,41 +26,61 @@ import { registry } from '@/lib/page-designer/registry';
  * Components registered: Content.announcementBanner, Content.contentCard, Content.hero, Content.pdImage, Content.popularCategory, Content.productRecommendations, Content.productTile, Layout.grid, Layout.header, Layout.heroCarousel, Layout.popularCategories, Layout.productCarousel
  */
 export function initializeRegistry(targetRegistry = registry): void {
-    targetRegistry.registerImporter(
-        'Content.announcementBanner',
-        () => import('../../components/announcement-banner/index'),
-        { fallback: 'fallback' }
-    );
-    targetRegistry.registerImporter('Content.contentCard', () => import('../../components/content-card/index'));
-    targetRegistry.registerImporter('Content.hero', () => import('../../components/hero/index'));
-    targetRegistry.registerImporter('Content.pdImage', () => import('../../components/dynamic-image/index'));
-    targetRegistry.registerImporter(
-        'Content.popularCategory',
-        () => import('../../components/home/popular-category/index'),
-        { loader: 'loader' }
-    );
-    targetRegistry.registerImporter(
-        'Content.productRecommendations',
-        () => import('../../components/product-recommendations/index'),
-        { loader: 'loader' }
-    );
-    targetRegistry.registerImporter('Content.productTile', () => import('../../components/product-tile/index'), {
-        loader: 'loader',
-    });
-    targetRegistry.registerImporter('Layout.grid', () => import('../../components/grid/index'));
-    targetRegistry.registerImporter('Layout.header', () => import('../../components/header/index'));
-    targetRegistry.registerImporter('Layout.heroCarousel', () => import('../../components/hero-carousel/index'), {
-        fallback: 'fallback',
-    });
-    targetRegistry.registerImporter(
-        'Layout.popularCategories',
-        () => import('../../components/home/popular-categories/index'),
-        { loader: 'loader' }
-    );
-    targetRegistry.registerImporter('Layout.productCarousel', () => import('../../components/product-carousel/index'), {
-        loader: 'loader',
-        fallback: 'fallback',
-    });
+	targetRegistry.registerImporter(
+		"Content.announcementBanner",
+		() => import("../../components/announcement-banner/index"),
+		{ fallback: "fallback" },
+	);
+	targetRegistry.registerImporter(
+		"Content.contentCard",
+		() => import("../../components/content-card/index"),
+	);
+	targetRegistry.registerImporter(
+		"Content.hero",
+		() => import("../../components/hero/index"),
+	);
+	targetRegistry.registerImporter(
+		"Content.pdImage",
+		() => import("../../components/dynamic-image/index"),
+	);
+	targetRegistry.registerImporter(
+		"Content.popularCategory",
+		() => import("../../components/home/popular-category/index"),
+		{ loader: "loader" },
+	);
+	targetRegistry.registerImporter(
+		"Content.productRecommendations",
+		() => import("../../components/product-recommendations/index"),
+		{ loader: "loader" },
+	);
+	targetRegistry.registerImporter(
+		"Content.productTile",
+		() => import("../../components/product-tile/index"),
+		{ loader: "loader" },
+	);
+	targetRegistry.registerImporter(
+		"Layout.grid",
+		() => import("../../components/grid/index"),
+	);
+	targetRegistry.registerImporter(
+		"Layout.header",
+		() => import("../../components/header/index"),
+	);
+	targetRegistry.registerImporter(
+		"Layout.heroCarousel",
+		() => import("../../components/hero-carousel/index"),
+		{ fallback: "fallback" },
+	);
+	targetRegistry.registerImporter(
+		"Layout.popularCategories",
+		() => import("../../components/home/popular-categories/index"),
+		{ loader: "loader" },
+	);
+	targetRegistry.registerImporter(
+		"Layout.productCarousel",
+		() => import("../../components/product-carousel/index"),
+		{ loader: "loader", fallback: "fallback" },
+	);
 }
 
 // STATIC_REGISTRY_END

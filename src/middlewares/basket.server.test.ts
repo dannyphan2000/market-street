@@ -478,7 +478,10 @@ describe('basket.server middleware', () => {
             const result = await getBasket(mockContext, { ensureBasket: 'read' });
 
             expect(getBasketRead).toHaveBeenCalledWith({
-                params: { path: { basketId: 'basket-existing' } },
+                params: {
+                    path: { basketId: 'basket-existing' },
+                    query: { expand: ['approaching_discounts'] },
+                },
             });
             expect(getOrCreateBasket).not.toHaveBeenCalled();
             expect(result.current).toEqual(fetchedBasket);
@@ -553,7 +556,10 @@ describe('basket.server middleware', () => {
             const result = await getBasket(mockContext, { ensureBasket: 'read' });
 
             expect(getOrCreateBasket).toHaveBeenCalledWith({
-                params: { path: { basketId: 'basket-stale' } },
+                params: {
+                    path: { basketId: 'basket-stale' },
+                    query: { expand: ['approaching_discounts'] },
+                },
                 body: { currency: 'GBP' },
             });
             expect(result.current).toEqual(freshBasket);
