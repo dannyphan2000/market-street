@@ -1,0 +1,11 @@
+{
+    "banner": {
+        "approaching": "Je bent nog <bold>{{amount}}</bold> verwijderd van <highlight>{{discount}}</highlight>",
+        "achieved": "Je bestelling komt in aanmerking voor <highlight>{{discount}}</highlight>",
+        "progressLabel": "{{merchandiseTotal}} van {{threshold}} richting {{discount}}",
+        "fallbackDiscount": {
+            "order": "een korting",
+            "shipping": "een verzendkorting"
+        }
+    }
+}
