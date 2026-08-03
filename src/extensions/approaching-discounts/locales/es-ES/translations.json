@@ -1,0 +1,11 @@
+{
+    "banner": {
+        "approaching": "Te faltan <bold>{{amount}}</bold> para conseguir <highlight>{{discount}}</highlight>",
+        "achieved": "Tu pedido reúne los requisitos para <highlight>{{discount}}</highlight>",
+        "progressLabel": "{{merchandiseTotal}} de {{threshold}} hacia {{discount}}",
+        "fallbackDiscount": {
+            "order": "un descuento",
+            "shipping": "un descuento en el envío"
+        }
+    }
+}
