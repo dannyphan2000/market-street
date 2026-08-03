@@ -1,0 +1,8 @@
+{
+    "caches": [
+        {
+            "id": "CDSShippingPDPDeliveryEstimate",
+            "expireAfterSeconds": 300
+        }
+    ]
+}
