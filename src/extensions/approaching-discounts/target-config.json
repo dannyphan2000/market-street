@@ -4,19 +4,19 @@
             "targetId": "sfcc.checkout.orderSummary.body.before",
             "path": "extensions/approaching-discounts/components/target/approaching-discounts-surface.tsx",
             "order": 0,
-            "enabled": false
+            "enabled": true
         },
         {
             "targetId": "sfcc.cart.orderSummary.body.before",
             "path": "extensions/approaching-discounts/components/target/approaching-discounts-surface.tsx",
             "order": 0,
-            "enabled": true
+            "enabled": false
         },
         {
             "targetId": "sfcc.cart.promotions.approachingDiscounts",
             "path": "extensions/approaching-discounts/components/target/approaching-discounts-surface.tsx",
             "order": 0,
-            "enabled": false
+            "enabled": true
         },
         {
             "targetId": "sfcc.miniCart.promotions.approachingDiscounts",
