@@ -1,0 +1,11 @@
+{
+    "banner": {
+        "approaching": "<highlight>{{discount}}</highlight>まであと<bold>{{amount}}</bold>です",
+        "achieved": "ご注文は<highlight>{{discount}}</highlight>の対象です",
+        "progressLabel": "{{discount}}まで{{threshold}}のうち{{merchandiseTotal}}",
+        "fallbackDiscount": {
+            "order": "割引",
+            "shipping": "配送料割引"
+        }
+    }
+}
