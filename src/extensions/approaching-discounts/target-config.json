@@ -4,7 +4,7 @@
             "targetId": "sfcc.checkout.orderSummary.body.before",
             "path": "extensions/approaching-discounts/components/target/approaching-discounts-surface.tsx",
             "order": 0,
-            "enabled": false
+            "enabled": true
         },
         {
             "targetId": "sfcc.cart.orderSummary.body.before",
@@ -16,7 +16,7 @@
             "targetId": "sfcc.cart.promotions.approachingDiscounts",
             "path": "extensions/approaching-discounts/components/target/approaching-discounts-surface.tsx",
             "order": 0,
-            "enabled": false
+            "enabled": true
         },
         {
             "targetId": "sfcc.miniCart.promotions.approachingDiscounts",
