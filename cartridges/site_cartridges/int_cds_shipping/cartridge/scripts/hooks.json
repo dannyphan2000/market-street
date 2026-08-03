@@ -1,0 +1,16 @@
+{
+    "hooks": [
+        {
+            "name": "sfcc.app.shipping.estimate",
+            "script": "./hooks/estimate.js"
+        },
+        {
+            "name": "sfcc.app.shipping.quote",
+            "script": "./hooks/quote.js"
+        },
+        {
+            "name": "sfcc.app.shipping.calculate",
+            "script": "./hooks/calculate.js"
+        }
+    ]
+}
