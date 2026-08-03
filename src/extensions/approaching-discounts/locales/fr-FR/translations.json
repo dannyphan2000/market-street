@@ -1,0 +1,11 @@
+{
+    "banner": {
+        "approaching": "Il vous reste <bold>{{amount}}</bold> pour obtenir <highlight>{{discount}}</highlight>",
+        "achieved": "Votre commande donne droit à <highlight>{{discount}}</highlight>",
+        "progressLabel": "{{merchandiseTotal}} sur {{threshold}} vers {{discount}}",
+        "fallbackDiscount": {
+            "order": "une remise",
+            "shipping": "une remise sur la livraison"
+        }
+    }
+}

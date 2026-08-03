@@ -1,0 +1,11 @@
+{
+    "banner": {
+        "approaching": "Du är bara <bold>{{amount}}</bold> från <highlight>{{discount}}</highlight>",
+        "achieved": "Din beställning kvalificerar för <highlight>{{discount}}</highlight>",
+        "progressLabel": "{{merchandiseTotal}} av {{threshold}} mot {{discount}}",
+        "fallbackDiscount": {
+            "order": "en rabatt",
+            "shipping": "en fraktrabatt"
+        }
+    }
+}
