@@ -1,0 +1,11 @@
+{
+    "banner": {
+        "approaching": "Olet enää <bold>{{amount}}</bold> päässä edusta <highlight>{{discount}}</highlight>",
+        "achieved": "Tilauksesi oikeuttaa etuun <highlight>{{discount}}</highlight>",
+        "progressLabel": "{{merchandiseTotal}} / {{threshold}} kohti etua {{discount}}",
+        "fallbackDiscount": {
+            "order": "alennus",
+            "shipping": "toimitusalennus"
+        }
+    }
+}
