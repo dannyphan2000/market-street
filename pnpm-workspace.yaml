@@ -39,3 +39,4 @@ trustPolicy: no-downgrade
 trustPolicyExclude:
   - 'chokidar@4.0.3'          # Lost SLSA provenance in 4.0.2+; dep of @react-router/dev
   - 'semver@6.3.1 || 5.7.2'   # Lost provenance; dep of eslint-plugin-import, lighthouse
+  - 'rxjs@7.8.2'              # Lost provenance; published by rxjs lead (blesh), same as 7.8.1; dep of concurrently
