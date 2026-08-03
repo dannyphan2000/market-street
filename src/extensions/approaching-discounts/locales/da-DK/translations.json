@@ -1,0 +1,11 @@
+{
+    "banner": {
+        "approaching": "Du mangler kun <bold>{{amount}}</bold> for at få <highlight>{{discount}}</highlight>",
+        "achieved": "Din ordre kvalificerer til <highlight>{{discount}}</highlight>",
+        "progressLabel": "{{merchandiseTotal}} af {{threshold}} mod {{discount}}",
+        "fallbackDiscount": {
+            "order": "en rabat",
+            "shipping": "en fragtrabat"
+        }
+    }
+}
