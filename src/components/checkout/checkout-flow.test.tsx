@@ -523,17 +523,18 @@ describe('Checkout Flow Integration Tests', () => {
         vi.mocked(useCheckoutContext).mockReturnValue(defaultCheckoutContext);
     });
 
-    // Default test props for CheckoutFormPage
+    // Default test props for CheckoutFormPage. The shipping methods map is streamed from the
+    // loader and resolved inside `ShippingMethodsBridge` — tests provide a resolved Promise.
     const defaultProps = {
         productMapPromise: Promise.resolve({}),
-        shippingMethodsMap: {
+        shippingMethodsMapPromise: Promise.resolve({
             me: {
                 applicableShippingMethods: [
                     { id: 'standard', name: 'Standard Shipping', price: 5.99, default: true },
                     { id: 'express', name: 'Express Shipping', price: 12.99 },
                 ],
             },
-        },
+        }),
     };
 
     const baseHandlers = [
@@ -916,6 +917,11 @@ describe('Checkout Flow Integration Tests', () => {
         });
 
         test('displays error state for failed submissions', async () => {
+            vi.mocked(useCheckoutContext).mockReturnValue({
+                ...defaultCheckoutContext,
+                step: defaultCheckoutContext.STEPS.PAYMENT,
+                computedStep: defaultCheckoutContext.STEPS.PAYMENT,
+            });
             // Mock error state
             mockUseFetcher.mockReturnValue({
                 state: 'idle',
@@ -929,14 +935,8 @@ describe('Checkout Flow Integration Tests', () => {
                 Form: 'form',
             });
 
-            await act(async () => {
-                render(<CheckoutFormPage {...defaultProps} />);
-                // Wait for Suspense boundaries to resolve
-                await new Promise((resolve) => setTimeout(resolve, 10));
-            });
-
-            // UI should display error messages to user
-            expect(screen.getByTestId('payment-form')).toBeInTheDocument();
+            render(<CheckoutFormPage {...defaultProps} />);
+            await screen.findByTestId('payment-form');
         });
 
         test('shows customer recognition UI for returning users', async () => {
@@ -1196,12 +1196,21 @@ describe('Checkout Flow Integration Tests', () => {
 
     describe('Edit Mode and Step Progression', () => {
         test('verifies checkout form sections are rendered', async () => {
-            // Since hooks are mocked at the top level, we can verify the components render
-            await act(async () => {
-                render(<CheckoutFormPage {...defaultProps} />);
-                // Wait for Suspense boundaries to resolve
-                await new Promise((resolve) => setTimeout(resolve, 10));
+            vi.mocked(useCheckoutContext).mockReturnValue({
+                ...defaultCheckoutContext,
+                step: defaultCheckoutContext.STEPS.PAYMENT,
+                computedStep: defaultCheckoutContext.STEPS.PAYMENT,
             });
+            // Since hooks are mocked at the top level, we can verify the components render.
+            // Wait for all four sections individually so each Suspense boundary is confirmed
+            // resolved before asserting — avoids a race when a section sits under its own boundary.
+            render(<CheckoutFormPage {...defaultProps} />);
+            await Promise.all([
+                screen.findByTestId('contact-info-form'),
+                screen.findByTestId('shipping-address-form'),
+                screen.findByTestId('shipping-options-form'),
+                screen.findByTestId('payment-form'),
+            ]);
 
             // All form sections should be present and testable
             expect(screen.getByTestId('contact-info-form')).toBeInTheDocument();
@@ -1690,12 +1699,13 @@ describe('Checkout Flow Integration Tests', () => {
             const shouldShowSaveOption = true; // Always show for registered customers
             expect(shouldShowSaveOption).toBe(true);
 
-            await act(async () => {
-                render(<CheckoutFormPage {...defaultProps} />);
-                // Wait for Suspense boundaries to resolve
-                await new Promise((resolve) => setTimeout(resolve, 10));
+            vi.mocked(useCheckoutContext).mockReturnValue({
+                ...defaultCheckoutContext,
+                step: defaultCheckoutContext.STEPS.PAYMENT,
+                computedStep: defaultCheckoutContext.STEPS.PAYMENT,
             });
-            expect(screen.getByTestId('payment-form')).toBeInTheDocument();
+            render(<CheckoutFormPage {...defaultProps} />);
+            await screen.findByTestId('payment-form');
         });
 
         test('handles complete registered shopper checkout flow', async () => {

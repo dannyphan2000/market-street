@@ -15,6 +15,7 @@
  */
 
 import type { ReactElement } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -40,7 +41,7 @@ export function ExpressPaymentsSkeleton(): ReactElement {
 
 export function ContactInfoSkeleton(): ReactElement {
     return (
-        <Card className="relative gap-4">
+        <Card className="relative gap-4 min-h-[168px]">
             <CardHeader>
                 <Skeleton className="h-6 w-40" />
             </CardHeader>
@@ -63,7 +64,7 @@ export function ContactInfoSkeleton(): ReactElement {
 
 export function ShippingAddressSkeleton(): ReactElement {
     return (
-        <Card className="relative gap-4">
+        <Card className="relative gap-4 min-h-[520px]">
             <CardHeader>
                 <Skeleton className="h-6 w-48" />
             </CardHeader>
@@ -108,7 +109,7 @@ export function ShippingAddressSkeleton(): ReactElement {
 
 export function ShippingOptionsSkeleton(): ReactElement {
     return (
-        <Card className="relative gap-4">
+        <Card className="relative gap-4 min-h-[180px]">
             <CardHeader>
                 <Skeleton className="h-6 w-44" />
             </CardHeader>
@@ -133,9 +134,13 @@ export function ShippingOptionsSkeleton(): ReactElement {
     );
 }
 
+/**
+ * Suspense fallback while the Payment chunk/content is loading soon.
+ * Uses animate-pulse skeletons — appropriate only for short-lived loading.
+ */
 export function PaymentSkeleton(): ReactElement {
     return (
-        <Card className="relative gap-4">
+        <Card className="relative gap-4 min-h-[280px]">
             <CardHeader>
                 <Skeleton className="h-6 w-32" />
             </CardHeader>
@@ -169,6 +174,23 @@ export function PaymentSkeleton(): ReactElement {
                     <Skeleton className="h-4 w-64" />
                 </div>
             </CardContent>
+        </Card>
+    );
+}
+
+/**
+ * Static pre-payment step placeholder (not a Suspense fallback).
+ * Keeps the real Payment heading in the outline and reserves height without pulsing.
+ */
+export function PaymentPlaceholder(): ReactElement {
+    const { t } = useTranslation('checkout');
+
+    return (
+        <Card className="relative gap-4 min-h-[280px]" data-testid="payment-placeholder">
+            <CardHeader className="border-b border-border pb-4">
+                <h2 className="text-2xl font-bold tracking-tight text-card-foreground">{t('payment.title')}</h2>
+            </CardHeader>
+            <CardContent aria-hidden="true" className="min-h-[200px]" />
         </Card>
     );
 }
@@ -229,7 +251,7 @@ export function MyCartSkeleton({ itemCount = 2 }: { itemCount?: number }): React
         <div className="w-full" data-testid="my-cart-skeleton">
             <div className="divide-y divide-border -mx-[var(--cart-divider-extend,0px)] [&>*]:px-[var(--cart-divider-extend,0px)]">
                 {Array.from({ length: itemCount }).map((_, i) => (
-                    // eslint-disable-next-line react/no-array-index-key
+                    // oxlint-disable-next-line react/no-array-index-key
                     <div key={`cart-item-skeleton-${i}`} className="py-4" data-testid={`my-cart-item-skeleton-${i}`}>
                         <div className="flex gap-3 md:gap-4">
                             <Skeleton className="w-16 h-16 md:w-20 md:h-20 flex-shrink-0" />

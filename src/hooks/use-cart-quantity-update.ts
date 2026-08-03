@@ -32,6 +32,7 @@ import { useBasketUpdater } from '@/providers/basket';
 
 // Constants
 import { resourceRoutes } from '@/route-paths';
+import { ErrorCode } from '@/lib/error-codes';
 // Types
 import type { ShopperBasketsV2 } from '@/scapi';
 import type { BasketActionResponse } from '@/routes/types/action-responses';
@@ -44,7 +45,7 @@ import { useTranslation } from 'react-i18next';
  * `{ success: true, basket }` via `createBasketAction`. Callers pin a richer type if they want narrower access.
  */
 interface UseCartQuantityUpdateProps<
-    TResponse extends { success?: boolean; basket?: ShopperBasketsV2.schemas['Basket'] },
+    TResponse extends { success?: boolean; basket?: ShopperBasketsV2.schemas['Basket']; error?: { code?: string } },
 > {
     /** Cart item ID for API calls */
     itemId: string;
@@ -112,7 +113,11 @@ interface UseCartQuantityUpdateReturn {
  * ```
  */
 export function useCartQuantityUpdate<
-    TResponse extends { success?: boolean; basket?: ShopperBasketsV2.schemas['Basket'] } = BasketActionResponse,
+    TResponse extends {
+        success?: boolean;
+        basket?: ShopperBasketsV2.schemas['Basket'];
+        error?: { code?: string };
+    } = BasketActionResponse,
 >({
     itemId,
     initialValue,
@@ -188,7 +193,7 @@ export function useCartQuantityUpdate<
         }, effectiveDebounceDelay);
         // effectiveDebounceDelay: stable value, no need to recreate effect
         // fetcher: stable fetcher, no need to recreate effect
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // oxlint-disable-next-line react-hooks/exhaustive-deps
     }, [itemId, stockLevel]);
 
     // Handle quantity change with cart-specific logic
@@ -299,11 +304,17 @@ export function useCartQuantityUpdate<
                 // On failure, reset to the last known good value
                 setQuantity(lastSuccessfulQuantityRef.current);
                 setPendingQuantity(null);
-                addToast(t('quantityUpdateFailed'), 'error');
+                // The server rejects an increase past available stock with OUT_OF_STOCK; surface that specifically
+                // so the shopper knows to lower the quantity rather than seeing a generic "try again" message.
+                const message =
+                    fetcher.data.error?.code === ErrorCode.OUT_OF_STOCK
+                        ? t('insufficientStock')
+                        : t('quantityUpdateFailed');
+                addToast(message, 'error');
             }
         }
         //As addToast is unlikely to change, we don't need to include it in the dependency array
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // oxlint-disable-next-line react-hooks/exhaustive-deps
     }, [fetcher.state, fetcher.data, itemId, updateBasket]);
 
     // Cleanup debounce on unmount
@@ -313,7 +324,7 @@ export function useCartQuantityUpdate<
         };
         // changeItemQuantity: stable debounced function, no need to recreate effect
         // Only depend on itemId to avoid premature cleanup
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // oxlint-disable-next-line react-hooks/exhaustive-deps
     }, [itemId]);
 
     // Keep refs in sync with state

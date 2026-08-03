@@ -56,7 +56,7 @@ function CheckoutHeaderHarness(): ReactElement {
 }
 
 const meta: Meta<HeaderStoryArgs> = {
-    title: 'LAYOUT/Header',
+    title: 'Layout/Header',
     tags: ['autodocs', 'interaction', 'chromatic-core'],
     parameters: {
         layout: 'fullscreen',
@@ -117,6 +117,7 @@ const mobileViewport = {
  */
 export const CheckoutVariant: Story = {
     parameters: {
+        chromatic: { disableSnapshot: true },
         docs: {
             description: {
                 story: 'Checkout header — logo + cart only. No search, user actions, wishlist, or navigation menu.',

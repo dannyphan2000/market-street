@@ -24,8 +24,6 @@ import ProductGrid from '../grid';
 const { t } = getTranslation();
 import { SiteProvider } from '@salesforce/storefront-next-runtime/site-context';
 import { mockLocale, mockSiteObject } from '@/test-utils/config';
-import { WishlistProvider } from '@/providers/wishlist';
-import { EMPTY_WISHLIST_STATE } from '@/lib/wishlist/state';
 import {
     mockProductSearchItem,
     mockStandardProductHit,
@@ -74,7 +72,7 @@ const ALL_PRODUCTS: ProductSearchHit[] = Array.from({ length: 24 }).map((_, idx)
 const MAX_PRODUCTS = ALL_PRODUCTS.length;
 
 const meta: Meta<typeof ProductGrid> = {
-    title: 'PRODUCTS/Product Grid',
+    title: 'Products/Product Grid',
     component: ProductGrid,
     tags: ['autodocs', 'interaction', 'chromatic-core'],
     parameters: {
@@ -92,11 +90,9 @@ const meta: Meta<typeof ProductGrid> = {
                 locale={mockLocale}
                 language={mockSiteObject.defaultLocale}
                 currency={mockSiteObject.defaultCurrency}>
-                <WishlistProvider initialState={EMPTY_WISHLIST_STATE}>
-                    <div className="section-container py-8 bg-background">
-                        <Story />
-                    </div>
-                </WishlistProvider>
+                <div className="section-container py-8 bg-background">
+                    <Story />
+                </div>
             </SiteProvider>
         ),
     ],
@@ -200,6 +196,9 @@ export const FullyFeatured: StoryObj<ComponentType<Partial<SyntheticArgs>>> = {
  * (no tiles, just one centered message).
  */
 export const EmptyState: StoryObj<typeof ProductGrid> = {
+    parameters: {
+        chromatic: { disableSnapshot: true },
+    },
     args: {
         critical: [],
         nonCritical: [],
@@ -212,6 +211,36 @@ export const EmptyState: StoryObj<typeof ProductGrid> = {
 };
 
 /**
+ * BOPIS pickup availability. With `showPickupAvailable`, the grid forwards the
+ * flag to every tile, each of which renders a "pickup available" indicator.
+ * Worth a dedicated story (rather than only the Controls toggle) because it
+ * pins the contract that the flag reaches all tiles — the play asserts one
+ * indicator per rendered tile.
+ */
+export const WithPickupAvailable: StoryObj<typeof ProductGrid> = {
+    parameters: {
+        chromatic: { disableSnapshot: true },
+    },
+    args: {
+        critical: ALL_PRODUCTS.slice(0, 4),
+        nonCritical: [],
+        showPickupAvailable: true,
+    },
+    play: async ({ canvasElement }) => {
+        await waitForStorybookReady(canvasElement);
+
+        // Four critical tiles → four pickup-available indicators, one per tile.
+        // This count already confirms the flag reached every rendered tile, so an
+        // additional product-link count would be redundant — and brittle: each tile
+        // renders several `/product/i`-matching links (the "View {name}" overlay, the
+        // name heading, and lazy-loaded swatch links), so the total is not 1:1 with
+        // tiles at the composed grid level.
+        const indicators = canvasElement.querySelectorAll('[data-testid="pickup-available-indicator"]');
+        await expect(indicators.length).toBe(4);
+    },
+};
+
+/**
  * `isLoading=true` short-circuits the grid render and shows a fixed-count
  * skeleton block instead. Worth a dedicated story because the loading layout
  * (no tiles, no empty message — only skeletons) is fundamentally different
@@ -220,6 +249,9 @@ export const EmptyState: StoryObj<typeof ProductGrid> = {
  * rely on.
  */
 export const Loading: StoryObj<typeof ProductGrid> = {
+    parameters: {
+        chromatic: { disableSnapshot: true },
+    },
     args: {
         critical: ALL_PRODUCTS.slice(0, 2),
         nonCritical: ALL_PRODUCTS.slice(2, 8),

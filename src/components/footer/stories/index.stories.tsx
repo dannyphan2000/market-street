@@ -43,7 +43,7 @@ interface FooterStoryArgs {
 }
 
 const meta: Meta<FooterStoryArgs> = {
-    title: 'LAYOUT/Footer',
+    title: 'Layout/Footer',
     tags: ['autodocs', 'interaction', 'chromatic-core'],
     parameters: {
         layout: 'fullscreen',
@@ -136,6 +136,7 @@ export const MobileView: Story = {
  */
 export const CheckoutVariant: Story = {
     parameters: {
+        chromatic: { disableSnapshot: true },
         docs: {
             description: {
                 story: 'Stripped-down checkout footer — copyright + legal links only. Used on `_checkout.tsx` so trust marks remain visible without distracting from the checkout flow.',

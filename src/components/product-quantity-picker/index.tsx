@@ -15,7 +15,7 @@
  */
 
 // React
-import { type ReactElement, useCallback, useState } from 'react';
+import { type ReactElement, useCallback, useState, useId } from 'react';
 
 // Components
 import QuantityPicker from '@/components/quantity-picker/quantity-picker';
@@ -71,6 +71,7 @@ export default function ProductQuantityPicker({
     const { t: tQuantity } = useTranslation('quantitySelector');
     const { t: tProduct } = useTranslation('product');
     const { t: tCommon } = useTranslation('common');
+    const quantityId = `quantity-${useId()}`;
 
     // Handle quantity change - let QuantityPicker handle validation with min=1
     const handleQuantityChange = useCallback(
@@ -107,26 +108,36 @@ export default function ProductQuantityPicker({
     };
 
     const inventoryMessage = getInventoryMessage();
+    const inventoryMessageId = `${quantityId}-inventory-msg`;
 
     return (
         <div className={cn('space-y-2', className)}>
-            <Label htmlFor="quantity" className="text-base font-semibold leading-6 text-card-foreground">
+            <Label htmlFor={quantityId} className="text-base font-semibold leading-6 text-card-foreground">
                 {tQuantity('quantity')}
             </Label>
             <QuantityPicker
+                id={quantityId}
                 value={quantity}
                 min={1}
                 max={maxQuantity}
                 onChange={handleQuantityChange}
                 productName={productName}
                 disabled={disabled}
+                aria-describedby={inventoryMessage ? inventoryMessageId : undefined}
             />
-            {/* Inventory message */}
-            {inventoryMessage && (
-                <Typography variant="small" className="text-destructive font-medium" role="alert" aria-live="polite">
-                    {inventoryMessage}
-                </Typography>
-            )}
+            {/* Inventory message.
+                The live region stays mounted and empty when there is no message, so a screen
+                reader observes the empty→filled transition and announces the warning when the
+                requested quantity crosses the stock threshold. A region that only mounts once
+                it already holds text is silent. Matches the InventoryMessage pattern.
+                The id is the aria-describedby target for the picker input above. */}
+            <div id={inventoryMessageId} role="status" aria-live="polite" aria-atomic="true">
+                {inventoryMessage && (
+                    <Typography variant="small" className="text-destructive font-medium">
+                        {inventoryMessage}
+                    </Typography>
+                )}
+            </div>
         </div>
     );
 }

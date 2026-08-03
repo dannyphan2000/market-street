@@ -77,7 +77,8 @@ describe('Contact', () => {
         expect(screen.getByText(t('aboutUs:contact.intro'))).toBeInTheDocument();
 
         const phoneLink = screen.getByRole('link', { name: t('aboutUs:contact.phoneDisplay') });
-        // Explicit-scheme URLs (tel:, mailto:, https:) are left unprefixed by the site-context Link component
+        // The tel: URL is an explicit scheme, so the site-context Link passes it through untouched
+        // (no site/locale prefix) — see buildUrl's classifyExternal.
         expect(phoneLink).toHaveAttribute('href', t('aboutUs:contact.phoneHref'));
 
         expect(screen.getByPlaceholderText(t('aboutUs:contact.form.placeholders.fullName'))).toBeInTheDocument();

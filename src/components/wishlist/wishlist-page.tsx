@@ -29,6 +29,7 @@ import {
     type WishlistFilterOption,
 } from '@/components/wishlist/wishlist-sort-filter';
 import { getPriceData } from '@/components/product-price/utils';
+import { cn } from '@/lib/utils';
 
 type CustomerProductListItem = ShopperCustomers.schemas['CustomerProductListItem'];
 type Product = ShopperProducts.schemas['Product'];
@@ -82,9 +83,7 @@ export function WishlistSkeleton(): ReactElement {
         <div className="space-y-6">
             {/* Header card skeleton */}
             <Card className="px-6 py-3 gap-0 rounded-ui bg-card border-border">
-                <h1 className="text-2xl font-semibold text-foreground mb-1" tabIndex={0}>
-                    {t('navigation.wishlist')}
-                </h1>
+                <h1 className="text-2xl font-semibold text-foreground mb-1">{t('navigation.wishlist')}</h1>
                 <Skeleton className="h-4 w-48" />
             </Card>
 
@@ -192,14 +191,23 @@ export function WishlistPageContent({ items, productsByProductId }: WishlistPage
         });
     }, [visibleItems, productsByProductId, sortOption, filterOption]);
 
+    // Screen-reader summary of the current result set. Removing an item or changing
+    // the filter updates this text; because the region below is always mounted (empty
+    // when the wishlist itself is empty), a screen reader hears each change announced.
+    // The count reflects displayItems (the filtered/sorted set actually rendered), so
+    // narrowing a filter that changes which items show announces the new count.
+    const resultSummary = useMemo(() => {
+        if (visibleItems.length === 0) return '';
+        if (displayItems.length === 0) return t('wishlist.noFilterResults');
+        return t('wishlist.itemCount', { count: displayItems.length });
+    }, [visibleItems.length, displayItems.length, t]);
+
     return (
         <div className="space-y-5">
             {/* Page Header Card */}
             <Card className="bg-card border-border">
                 <CardContent className="px-6 py-3">
-                    <h1 className="text-2xl font-semibold text-foreground mb-1" tabIndex={0}>
-                        {t('wishlist.pageTitle')}
-                    </h1>
+                    <h1 className="text-2xl font-semibold text-foreground mb-1">{t('wishlist.pageTitle')}</h1>
                     <p className="text-sm text-muted-foreground">{t('wishlist.pageSubtitle')}</p>
                 </CardContent>
             </Card>
@@ -210,11 +218,20 @@ export function WishlistPageContent({ items, productsByProductId }: WishlistPage
                 <div className="p-4 space-y-3 border-b border-border">
                     <div className="space-y-1">
                         <h2 className="text-lg font-semibold text-foreground">{t('wishlist.savedItems')}</h2>
-                        {visibleItems.length > 0 && (
-                            <p className="text-sm text-muted-foreground">
-                                {t('wishlist.itemCount', { count: visibleItems.length })}
-                            </p>
-                        )}
+                        {/* The count line doubles as a persistent live region. It stays mounted
+                            (rendering empty at zero items) so a screen reader observes the
+                            empty→filled and filled→changed transitions when the shopper removes
+                            an item or applies a filter that changes the result set. When a filter
+                            empties the list the region is hidden visually (the centered placeholder
+                            below carries the message for sighted users) but still announces the
+                            no-results state to screen readers. */}
+                        <p
+                            role="status"
+                            aria-live="polite"
+                            aria-atomic="true"
+                            className={cn('text-sm text-muted-foreground', displayItems.length === 0 && 'sr-only')}>
+                            {resultSummary}
+                        </p>
                     </div>
                     {visibleItems.length > 0 && (
                         <WishlistSortFilter
@@ -233,7 +250,12 @@ export function WishlistPageContent({ items, productsByProductId }: WishlistPage
                         <p className="text-muted-foreground">{t('wishlist.emptySubtitle')}</p>
                     </div>
                 ) : displayItems.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+                    // Centered visual empty-state for sighted users. aria-hidden because the
+                    // persistent status region in the header already announces the same text
+                    // to screen readers; hiding this copy avoids reading it twice.
+                    <div
+                        aria-hidden="true"
+                        className="flex flex-col items-center justify-center py-16 px-4 text-center">
                         <p className="text-muted-foreground">{t('wishlist.noFilterResults')}</p>
                     </div>
                 ) : (

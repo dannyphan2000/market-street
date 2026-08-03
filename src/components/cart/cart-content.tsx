@@ -347,6 +347,7 @@ export default function CartContent({
                         )}
                     </div>
                     <div data-slot="order-summary" className="hidden md:block md:order-1 lg:order-2">
+                        <UITarget targetId="sfcc.cart.orderSummary.before" />
                         <OrderSummary
                             basket={basket}
                             surface="cart"

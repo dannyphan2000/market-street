@@ -21,6 +21,7 @@ import {
     ShippingAddressSkeleton,
     ShippingOptionsSkeleton,
     PaymentSkeleton,
+    PaymentPlaceholder,
     PickupSkeleton,
     OrderSummarySkeleton,
     MyCartSkeleton,
@@ -104,6 +105,24 @@ describe('Checkout Skeleton Components', () => {
         });
     });
 
+    describe('PaymentPlaceholder', () => {
+        it('exposes the Payment heading without pulsing skeletons', () => {
+            const { container } = render(<PaymentPlaceholder />);
+
+            expect(screen.getByRole('heading', { name: 'Payment', level: 2 })).toBeInTheDocument();
+            expect(screen.getByTestId('payment-placeholder')).toBeInTheDocument();
+            expect(container.querySelector('[data-slot="skeleton"]')).not.toBeInTheDocument();
+            expect(container.querySelector('.animate-pulse')).not.toBeInTheDocument();
+        });
+
+        it('reserves min-height for layout stability', () => {
+            const { container } = render(<PaymentPlaceholder />);
+            const card = container.querySelector('[data-slot="card"]');
+            if (!card) throw new Error('expected Card element to render');
+            expect(card.className).toContain('min-h-[280px]');
+        });
+    });
+
     describe('PickupSkeleton', () => {
         it('should render without crashing', () => {
             const { container } = render(<PickupSkeleton />);
@@ -143,6 +162,22 @@ describe('Checkout Skeleton Components', () => {
             render(<MyCartSkeleton itemCount={4} />);
             const items = screen.getAllByTestId(/^my-cart-item-skeleton-/);
             expect(items.length).toBe(4);
+        });
+    });
+
+    // Height reservation prevents the skeleton-to-content height mismatch that
+    // toggles the viewport scrollbar during checkout hydration.
+    describe('step skeletons reserve height', () => {
+        it.each([
+            ['ContactInfoSkeleton', ContactInfoSkeleton, 'min-h-[168px]'],
+            ['ShippingAddressSkeleton', ShippingAddressSkeleton, 'min-h-[520px]'],
+            ['ShippingOptionsSkeleton', ShippingOptionsSkeleton, 'min-h-[180px]'],
+            ['PaymentSkeleton', PaymentSkeleton, 'min-h-[280px]'],
+        ] as const)('%s reserves min-height', (_name, Component, expectedClass) => {
+            const { container } = render(<Component />);
+            const card = container.querySelector('[data-slot="card"]');
+            if (!card) throw new Error('expected Card element to render');
+            expect(card.className).toContain(expectedClass);
         });
     });
 });

@@ -106,6 +106,11 @@ vi.mock('./components/checkout-skeletons', () => ({
     ShippingAddressSkeleton: () => <div data-testid="shipping-address-skeleton">Loading...</div>,
     ShippingOptionsSkeleton: () => <div data-testid="shipping-options-skeleton">Loading...</div>,
     PaymentSkeleton: () => <div data-testid="payment-skeleton">Loading...</div>,
+    PaymentPlaceholder: () => (
+        <div data-testid="payment-placeholder">
+            <h2 id="payment">Payment</h2>
+        </div>
+    ),
     ExpressPaymentsSkeleton: () => <div data-testid="express-payments-skeleton">Loading...</div>,
     MyCartSkeleton: () => <div data-testid="my-cart-skeleton">Loading...</div>,
     OrderSummarySkeleton: () => <div data-testid="order-summary-skeleton">Loading...</div>,
@@ -122,44 +127,48 @@ const mockAnalytics = {
     trackCheckoutStart: vi.fn(),
     trackCheckoutStep: vi.fn(),
 };
-const mockUseAnalytics = vi.fn(() => mockAnalytics);
+// Mirror production useAnalytics(): return a fresh object every call so effect deps that
+// incorrectly include `analytics` will cancel/reschedule idle ticks on re-render.
+const mockUseAnalytics = vi.fn(() => ({
+    trackCheckoutStart: mockAnalytics.trackCheckoutStart,
+    trackCheckoutStep: mockAnalytics.trackCheckoutStep,
+}));
 vi.mock('@/hooks/use-analytics', () => ({
     useAnalytics: () => mockUseAnalytics(),
 }));
 
-const ExpressPaymentsMock = ({
-    onApplePayClick,
-    onGooglePayClick,
-    onAmazonPayClick,
-    onVenmoClick,
-    onPayPalClick,
-}: {
-    onApplePayClick: () => void;
-    onGooglePayClick: () => void;
-    onAmazonPayClick: () => void;
-    onVenmoClick: () => void;
-    onPayPalClick: () => void;
-}) => (
-    <div data-testid="express-payments">
-        <button type="button" onClick={onApplePayClick}>
-            Apple Pay
-        </button>
-        <button type="button" onClick={onGooglePayClick}>
-            Google Pay
-        </button>
-        <button type="button" onClick={onAmazonPayClick}>
-            Amazon Pay
-        </button>
-        <button type="button" onClick={onVenmoClick}>
-            Venmo
-        </button>
-        <button type="button" onClick={onPayPalClick}>
-            PayPal
-        </button>
-    </div>
-);
 vi.mock('./components/express-payments', () => ({
-    default: ExpressPaymentsMock,
+    default: ({
+        onApplePayClick,
+        onGooglePayClick,
+        onAmazonPayClick,
+        onVenmoClick,
+        onPayPalClick,
+    }: {
+        onApplePayClick: () => void;
+        onGooglePayClick: () => void;
+        onAmazonPayClick: () => void;
+        onVenmoClick: () => void;
+        onPayPalClick: () => void;
+    }) => (
+        <div data-testid="express-payments">
+            <button type="button" onClick={onApplePayClick}>
+                Apple Pay
+            </button>
+            <button type="button" onClick={onGooglePayClick}>
+                Google Pay
+            </button>
+            <button type="button" onClick={onAmazonPayClick}>
+                Amazon Pay
+            </button>
+            <button type="button" onClick={onVenmoClick}>
+                Venmo
+            </button>
+            <button type="button" onClick={onPayPalClick}>
+                PayPal
+            </button>
+        </div>
+    ),
 }));
 
 // Mock the checkout context
@@ -215,7 +224,7 @@ vi.mock('@/hooks/checkout/use-completed-steps', () => ({
 }));
 
 // Mock the checkout actions hook - stable references so tests can assert on calls
-const mockIsSubmitting = vi.fn(() => false);
+const mockIsSubmitting = vi.fn((_key: string) => false);
 const mockSubmitContactInfo = vi.fn();
 const mockSubmitShippingAddress = vi.fn();
 const mockSubmitShippingOptions = vi.fn();
@@ -390,9 +399,13 @@ vi.mock('@salesforce/storefront-next-runtime/site-context', async (importOrigina
 });
 
 describe('CheckoutFormPage', () => {
-    // Default test props
+    // Default test props. The shipping methods map is streamed by the loader (see
+    // `CheckoutPageData.shippingMethodsMap`) and resolved inside `ShippingMethodsBridge`, so
+    // tests provide a resolved Promise rather than the raw map.
     const defaultProps = {
-        shippingMethodsMap: { me: { applicableShippingMethods: [], defaultShippingMethodId: undefined } },
+        shippingMethodsMapPromise: Promise.resolve({
+            me: { applicableShippingMethods: [], defaultShippingMethodId: undefined },
+        }),
         productMapPromise: Promise.resolve({}),
     };
 
@@ -406,7 +419,7 @@ describe('CheckoutFormPage', () => {
     ): Promise<ReturnType<typeof render>> => {
         let view: ReturnType<typeof render> | undefined;
         await act(
-            // eslint-disable-next-line @typescript-eslint/require-await
+            // oxlint-disable-next-line @typescript-eslint/require-await
             async () => {
                 view = render(<CheckoutFormPage {...defaultProps} {...props} />);
             }
@@ -421,7 +434,10 @@ describe('CheckoutFormPage', () => {
         vi.clearAllMocks();
         mockAnalytics.trackCheckoutStart.mockReset();
         mockAnalytics.trackCheckoutStep.mockReset();
-        mockUseAnalytics.mockReturnValue(mockAnalytics);
+        mockUseAnalytics.mockImplementation(() => ({
+            trackCheckoutStart: mockAnalytics.trackCheckoutStart,
+            trackCheckoutStep: mockAnalytics.trackCheckoutStep,
+        }));
 
         Object.defineProperty(window, 'scrollTo', {
             writable: true,
@@ -486,6 +502,7 @@ describe('CheckoutFormPage', () => {
         });
 
         test('displays all checkout forms', async () => {
+            mockUseCheckoutContext.mockReturnValue(buildCheckoutContext({ step: defaultSteps.PLACE_ORDER }));
             mockUseBasket.mockReturnValueOnce({
                 basketId: 'test-basket',
                 productItems: [{ itemId: 'item1', productId: 'product1', quantity: 1, shipmentId: 'me' }],
@@ -751,17 +768,17 @@ describe('CheckoutFormPage', () => {
     });
 
     describe('Responsive order summary layout', () => {
-        test('keeps sidebar before express checkout in DOM for md layout', async () => {
+        test('keeps main checkout content before sidebar in DOM so keyboard tab order matches visual reading order (WCAG 2.4.3)', async () => {
             await renderCheckoutPage();
 
             const sidebar = screen.getByTestId('checkout-order-summary-sidebar');
             const expressPayments = screen.getByTestId('express-payments');
 
-            const relation = sidebar.compareDocumentPosition(expressPayments);
+            const relation = expressPayments.compareDocumentPosition(sidebar);
             expect(relation & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
         });
 
-        test('uses responsive order classes to move sidebar right on lg', async () => {
+        test('uses responsive order classes to move sidebar right on lg while staying above main on md', async () => {
             const { container } = await renderCheckoutPage();
 
             const grid = container.querySelector('.grid.grid-cols-1.lg\\:grid-cols-3.gap-8');
@@ -774,9 +791,25 @@ describe('CheckoutFormPage', () => {
 
             const mainContent = screen.getByTestId('express-payments').closest('div.space-y-6');
             expect(mainContent).toBeInTheDocument();
-            expect(mainContent?.className).toContain('order-2');
+            expect(mainContent?.className).toContain('md:order-2');
             expect(mainContent?.className).toContain('lg:order-1');
             expect(mainContent?.className).toContain('lg:col-span-2');
+        });
+
+        test('place order button is DOM-after sidebar so promo code is tabbed before place order (WCAG 2.4.3)', async () => {
+            mockUseCheckoutContext.mockReturnValue(
+                buildCheckoutContext({
+                    step: defaultSteps.PAYMENT,
+                })
+            );
+
+            await renderCheckoutPage();
+
+            const sidebar = screen.getByTestId('checkout-order-summary-sidebar');
+            const placeOrderButton = screen.getByRole('button', { name: /place order/i });
+
+            const relation = sidebar.compareDocumentPosition(placeOrderButton);
+            expect(relation & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
         });
     });
 
@@ -922,15 +955,67 @@ describe('CheckoutFormPage', () => {
             // Clear mock to verify subsequent calls
             mockAnalytics.trackCheckoutStep.mockClear();
 
-            // Re-render with same step - should not track again
-            act(() => {
-                rerender(<CheckoutFormPage {...defaultProps} />);
-            });
+            // Install fake timers before the same-step re-render so any newly scheduled idle
+            // fallback (setTimeout(0) in JSDOM) is intercepted — installing after schedule misses it.
+            vi.useFakeTimers();
+            try {
+                act(() => {
+                    rerender(<CheckoutFormPage {...defaultProps} />);
+                });
 
-            // Should not be called again when step hasn't changed
-            // Note: In a real scenario, the ref guard prevents this, but in tests
-            // re-rendering creates a new component instance, so we verify the initial call
-            expect(mockAnalytics.trackCheckoutStep).not.toHaveBeenCalled();
+                // The ref guard (previousStepRef.current === step) prevents scheduling entirely when
+                // the step has not changed. Flush any timers that might have been scheduled.
+                act(() => {
+                    vi.runAllTimers();
+                });
+                expect(mockAnalytics.trackCheckoutStep).not.toHaveBeenCalled();
+            } finally {
+                vi.useRealTimers();
+            }
+        });
+
+        test('trackCheckoutStart and step still fire once after idle despite unrelated re-renders', async () => {
+            // Simulate useAnalytics() returning a fresh object every render (its real behavior)
+            // and cart identity churning with a stable item count. Previously analytics/cart in
+            // effect deps cancelled/rescheduled the idle tick on each re-render and could starve
+            // the event before the macrotask ran.
+            // Fake timers before render: Suspense resolution inside act can otherwise let the
+            // setTimeout(0) idle fallback fire mid-await, racing the "not yet called" assertions.
+            vi.useFakeTimers();
+            try {
+                mockUseAnalytics.mockImplementation(() => ({
+                    trackCheckoutStart: mockAnalytics.trackCheckoutStart,
+                    trackCheckoutStep: mockAnalytics.trackCheckoutStep,
+                }));
+                mockUseBasket.mockImplementation(() => ({
+                    basketId: 'test-basket',
+                    productItems: [{ itemId: 'item1', productId: 'product1', quantity: 1 }],
+                }));
+
+                const { rerender } = await renderCheckoutPage();
+
+                expect(mockAnalytics.trackCheckoutStart).not.toHaveBeenCalled();
+                expect(mockAnalytics.trackCheckoutStep).not.toHaveBeenCalled();
+
+                act(() => {
+                    rerender(<CheckoutFormPage {...defaultProps} />);
+                    rerender(<CheckoutFormPage {...defaultProps} />);
+                    rerender(<CheckoutFormPage {...defaultProps} />);
+                });
+
+                // Still deferred after re-renders — in-flight tick was not cancelled/rescheduled.
+                expect(mockAnalytics.trackCheckoutStart).not.toHaveBeenCalled();
+                expect(mockAnalytics.trackCheckoutStep).not.toHaveBeenCalled();
+
+                act(() => {
+                    vi.runAllTimers();
+                });
+
+                expect(mockAnalytics.trackCheckoutStart).toHaveBeenCalledTimes(1);
+                expect(mockAnalytics.trackCheckoutStep).toHaveBeenCalledTimes(1);
+            } finally {
+                vi.useRealTimers();
+            }
         });
 
         test('does not track step when cart is empty', async () => {
@@ -944,6 +1029,90 @@ describe('CheckoutFormPage', () => {
             await waitFor(() => {
                 expect(mockAnalytics.trackCheckoutStep).not.toHaveBeenCalled();
             });
+        });
+
+        test('trackCheckoutStart is deferred to idle, not called synchronously on mount', async () => {
+            // Fake timers before render so the setTimeout(0) idle fallback cannot fire while
+            // act() awaits Suspense/lazy resolution. act() alone is not a reliable barrier.
+            vi.useFakeTimers();
+            try {
+                await renderCheckoutPage();
+                expect(mockAnalytics.trackCheckoutStart).not.toHaveBeenCalled();
+
+                act(() => {
+                    vi.runAllTimers();
+                });
+                expect(mockAnalytics.trackCheckoutStart).toHaveBeenCalled();
+            } finally {
+                vi.useRealTimers();
+            }
+        });
+
+        test('trackCheckoutStep is deferred to idle, not called synchronously on step change', async () => {
+            const { rerender } = await renderCheckoutPage();
+
+            // Drain the initial step tracking so previousStepRef is set to CONTACT_INFO.
+            await waitFor(() => expect(mockAnalytics.trackCheckoutStep).toHaveBeenCalledTimes(1));
+            mockAnalytics.trackCheckoutStep.mockClear();
+
+            // Fake timers before the step-change re-render so the newly scheduled idle tick
+            // cannot fire until we advance timers.
+            vi.useFakeTimers();
+            try {
+                mockUseCheckoutContext.mockReturnValue(buildCheckoutContext({ step: defaultSteps.SHIPPING_ADDRESS }));
+                act(() => {
+                    rerender(<CheckoutFormPage {...defaultProps} />);
+                });
+
+                // The effect has run synchronously and the idle callback is scheduled, but the
+                // callback itself has not fired yet, so previousStepRef and trackCheckoutStep are
+                // both untouched at this point.
+                expect(mockAnalytics.trackCheckoutStep).not.toHaveBeenCalled();
+
+                act(() => {
+                    vi.runAllTimers();
+                });
+                expect(mockAnalytics.trackCheckoutStep).toHaveBeenCalled();
+            } finally {
+                vi.useRealTimers();
+            }
+        });
+
+        test('queues first step when step changes before idle tick fires', async () => {
+            // Regression: CheckoutProvider advances CONTACT_INFO → computedStep in the same flush
+            // after mount. Cancelling the in-flight idle tick on that step change used to drop the
+            // first trackCheckoutStep. Queued observations must survive until idle drains them.
+            vi.useFakeTimers();
+            try {
+                const { rerender } = await renderCheckoutPage();
+
+                expect(mockAnalytics.trackCheckoutStep).not.toHaveBeenCalled();
+
+                mockUseCheckoutContext.mockReturnValue(buildCheckoutContext({ step: defaultSteps.SHIPPING_ADDRESS }));
+                act(() => {
+                    rerender(<CheckoutFormPage {...defaultProps} />);
+                });
+
+                expect(mockAnalytics.trackCheckoutStep).not.toHaveBeenCalled();
+
+                act(() => {
+                    vi.runAllTimers();
+                });
+
+                expect(mockAnalytics.trackCheckoutStep).toHaveBeenCalledTimes(2);
+                expect(mockAnalytics.trackCheckoutStep).toHaveBeenNthCalledWith(1, {
+                    stepName: 'CONTACT_INFO',
+                    stepNumber: defaultSteps.CONTACT_INFO,
+                    basket: expect.objectContaining({ basketId: 'test-basket' }),
+                });
+                expect(mockAnalytics.trackCheckoutStep).toHaveBeenNthCalledWith(2, {
+                    stepName: 'SHIPPING_ADDRESS',
+                    stepNumber: defaultSteps.SHIPPING_ADDRESS,
+                    basket: expect.objectContaining({ basketId: 'test-basket' }),
+                });
+            } finally {
+                vi.useRealTimers();
+            }
         });
     });
 
@@ -1213,6 +1382,7 @@ describe('CheckoutFormPage', () => {
 
     describe('Form submission handlers', () => {
         test('handlers are properly assigned to form components', async () => {
+            mockUseCheckoutContext.mockReturnValue(buildCheckoutContext({ step: defaultSteps.PLACE_ORDER }));
             await renderCheckoutPage();
 
             // Verify that forms render, which means handlers are assigned
@@ -1220,6 +1390,103 @@ describe('CheckoutFormPage', () => {
             expect(screen.getByText('Shipping Address Form')).toBeInTheDocument();
             expect(screen.getByText('Shipping Options Form')).toBeInTheDocument();
             expect(screen.getByText('Payment Form')).toBeInTheDocument();
+        });
+    });
+
+    describe('Payment step-guarded mount', () => {
+        test('renders PaymentPlaceholder with Payment heading and NOT Payment when step < STEPS.PAYMENT', async () => {
+            mockUseCheckoutContext.mockReturnValue(
+                buildCheckoutContext({
+                    step: defaultSteps.SHIPPING_ADDRESS,
+                    editingStep: null,
+                })
+            );
+
+            await renderCheckoutPage();
+
+            expect(screen.queryByText('Payment Form')).not.toBeInTheDocument();
+            expect(screen.getByTestId('payment-placeholder')).toBeInTheDocument();
+            expect(screen.getByRole('heading', { name: 'Payment' })).toBeInTheDocument();
+            expect(screen.queryByTestId('payment-skeleton')).not.toBeInTheDocument();
+        });
+
+        test('renders Payment when step >= STEPS.PAYMENT', async () => {
+            mockUseCheckoutContext.mockReturnValue(
+                buildCheckoutContext({
+                    step: defaultSteps.PAYMENT,
+                })
+            );
+
+            await renderCheckoutPage();
+
+            expect(screen.getByText('Payment Form')).toBeInTheDocument();
+        });
+
+        test('renders Payment when editingStep === STEPS.PAYMENT even if step < STEPS.PAYMENT', async () => {
+            mockUseCheckoutContext.mockReturnValue(
+                buildCheckoutContext({
+                    step: defaultSteps.SHIPPING_OPTIONS,
+                    editingStep: defaultSteps.PAYMENT,
+                })
+            );
+
+            await renderCheckoutPage();
+
+            expect(screen.getByText('Payment Form')).toBeInTheDocument();
+        });
+
+        test('keeps Payment mounted after step moves below PAYMENT via pinToStep latch', async () => {
+            mockUseCheckoutContext.mockReturnValue(
+                buildCheckoutContext({
+                    step: defaultSteps.PAYMENT,
+                    editingStep: null,
+                })
+            );
+
+            const { rerender } = await renderCheckoutPage();
+            expect(screen.getByText('Payment Form')).toBeInTheDocument();
+
+            // pinToStep sets both currentStep and editingStep (unlike goToStep).
+            mockUseCheckoutContext.mockReturnValue(
+                buildCheckoutContext({
+                    step: defaultSteps.SHIPPING_ADDRESS,
+                    editingStep: defaultSteps.SHIPPING_ADDRESS,
+                })
+            );
+
+            await act(
+                // eslint-disable-next-line @typescript-eslint/require-await
+                async () => {
+                    rerender(<CheckoutFormPage {...defaultProps} />);
+                }
+            );
+
+            expect(screen.getByText('Payment Form')).toBeInTheDocument();
+            expect(screen.queryByTestId('payment-placeholder')).not.toBeInTheDocument();
+        });
+
+        test('mounts Payment for registered user when step < STEPS.PAYMENT', async () => {
+            mockUseCustomerProfile.mockReturnValue({
+                customer: {
+                    customerId: 'registered-customer-123',
+                    email: 'test@example.com',
+                    firstName: 'John',
+                    lastName: 'Doe',
+                },
+                addresses: [],
+                paymentInstruments: [],
+            });
+            mockUseCheckoutContext.mockReturnValue(
+                buildCheckoutContext({
+                    step: defaultSteps.SHIPPING_ADDRESS,
+                    editingStep: null,
+                })
+            );
+
+            await renderCheckoutPage();
+
+            expect(screen.getByText('Payment Form')).toBeInTheDocument();
+            expect(screen.queryByTestId('payment-placeholder')).not.toBeInTheDocument();
         });
     });
 
@@ -1514,9 +1781,9 @@ describe('CheckoutFormPage', () => {
 
             await renderCheckoutPage({
                 showToast: mockShowToast,
-                shippingMethodsMap: {
+                shippingMethodsMapPromise: Promise.resolve({
                     me: { applicableShippingMethods: [], defaultShippingMethodId: undefined },
-                },
+                }),
             });
 
             await waitFor(() => {
@@ -1537,12 +1804,12 @@ describe('CheckoutFormPage', () => {
 
             await renderCheckoutPage({
                 showToast: mockShowToast,
-                shippingMethodsMap: {
+                shippingMethodsMapPromise: Promise.resolve({
                     me: {
                         applicableShippingMethods: [{ id: 'standard', name: 'Standard Shipping', price: 5.99 }],
                         defaultShippingMethodId: 'standard',
                     },
-                },
+                }),
             });
 
             expect(mockShowToast).not.toHaveBeenCalled();
@@ -1555,6 +1822,233 @@ describe('CheckoutFormPage', () => {
             await renderCheckoutPage({ showToast: mockShowToast });
 
             expect(mockShowToast).not.toHaveBeenCalled();
+        });
+    });
+
+    // These tests guard the reload-pin invariants — the last step of streamed prefill. Without them,
+    // regressions where `hasAnyValidShippingMethod` is used in place of `hasValidShippingMethodForEveryShipment`
+    // would only surface on refresh in a multi-shipment basket with partial coverage, which is
+    // easy to miss in QA.
+    describe('Reload-pin (shipping address without valid methods)', () => {
+        const buildAddressedBasket = (extra?: Record<string, unknown>) => ({
+            basketId: 'test-basket',
+            productItems: [{ itemId: 'item1', productId: 'product1', quantity: 1, shipmentId: 'me' }],
+            shipments: [
+                {
+                    shipmentId: 'me',
+                    shippingAddress: {
+                        firstName: 'John',
+                        lastName: 'Doe',
+                        address1: '123 Main St',
+                        city: 'Anytown',
+                        stateCode: 'CA',
+                        postalCode: '12345',
+                        countryCode: 'US',
+                    },
+                },
+            ],
+            ...(extra ?? {}),
+        });
+
+        test('pins to SHIPPING_ADDRESS on refresh when a shipment has no valid methods for its address', async () => {
+            const mockShowToast = vi.fn();
+            const pinToStep = vi.fn();
+            mockUseBasket.mockReturnValue(buildAddressedBasket());
+            mockUseCheckoutContext.mockReturnValue(buildCheckoutContext({ step: defaultSteps.PAYMENT, pinToStep }));
+            // No submit in flight — this is a fresh load.
+            mockShippingAddressFetcherData = null;
+
+            await renderCheckoutPage({
+                showToast: mockShowToast,
+                // Populated map with an empty methods entry — the address was submitted, the
+                // hook ran, but no methods came back. Note: `Promise.resolve({})` would trip
+                // the vacuous-truth branch of `hasValidShippingMethodForEveryShipment` and not
+                // pin, which is the intended behavior when no address has been submitted yet.
+                shippingMethodsMapPromise: Promise.resolve({
+                    me: { applicableShippingMethods: [], defaultShippingMethodId: undefined },
+                }),
+            });
+
+            await waitFor(() => {
+                expect(pinToStep).toHaveBeenCalledWith(defaultSteps.SHIPPING_ADDRESS);
+            });
+            expect(mockShowToast).toHaveBeenCalledWith(
+                i18next.t('errors:checkout.noShippingMethodsForAddress'),
+                'error'
+            );
+        });
+
+        test('pins to SHIPPING_ADDRESS on refresh when a multi-shipment basket has one shipment lacking methods', async () => {
+            // Regression: previously this used `hasAnyValidShippingMethod`, so ANY valid method in the
+            // map would suppress the pin even though a second shipment could not be delivered. The
+            // check must be every-shipment.
+            const mockShowToast = vi.fn();
+            const pinToStep = vi.fn();
+            mockUseBasket.mockReturnValue(
+                buildAddressedBasket({
+                    shipments: [
+                        {
+                            shipmentId: 'me',
+                            shippingAddress: {
+                                firstName: 'John',
+                                lastName: 'Doe',
+                                address1: '123 Main St',
+                                city: 'Anytown',
+                                stateCode: 'CA',
+                                postalCode: '12345',
+                                countryCode: 'US',
+                            },
+                        },
+                        {
+                            shipmentId: 'gift',
+                            shippingAddress: {
+                                firstName: 'Jane',
+                                lastName: 'Roe',
+                                address1: '456 Elm St',
+                                city: 'Elsewhere',
+                                stateCode: 'NY',
+                                postalCode: '10001',
+                                countryCode: 'US',
+                            },
+                        },
+                    ],
+                })
+            );
+            mockUseCheckoutContext.mockReturnValue(buildCheckoutContext({ step: defaultSteps.PAYMENT, pinToStep }));
+            mockShippingAddressFetcherData = null;
+
+            await renderCheckoutPage({
+                showToast: mockShowToast,
+                shippingMethodsMapPromise: Promise.resolve({
+                    me: {
+                        applicableShippingMethods: [{ id: 'standard', name: 'Standard', price: 5.99 }],
+                        defaultShippingMethodId: 'standard',
+                    },
+                    gift: { applicableShippingMethods: [], defaultShippingMethodId: undefined },
+                }),
+            });
+
+            await waitFor(() => {
+                expect(pinToStep).toHaveBeenCalledWith(defaultSteps.SHIPPING_ADDRESS);
+            });
+        });
+
+        test('does not pin when every shipment has at least one valid method', async () => {
+            const mockShowToast = vi.fn();
+            const pinToStep = vi.fn();
+            mockUseBasket.mockReturnValue(buildAddressedBasket());
+            mockUseCheckoutContext.mockReturnValue(buildCheckoutContext({ step: defaultSteps.PAYMENT, pinToStep }));
+            mockShippingAddressFetcherData = null;
+
+            await renderCheckoutPage({
+                showToast: mockShowToast,
+                shippingMethodsMapPromise: Promise.resolve({
+                    me: {
+                        applicableShippingMethods: [{ id: 'standard', name: 'Standard Shipping', price: 5.99 }],
+                        defaultShippingMethodId: 'standard',
+                    },
+                }),
+            });
+
+            expect(pinToStep).not.toHaveBeenCalled();
+            expect(mockShowToast).not.toHaveBeenCalled();
+        });
+
+        test('does not pin when the basket has no shipping address yet', async () => {
+            // First-time checkout with an empty basket — the address has not been submitted, so the
+            // shopper should not be pinned or toasted.
+            const mockShowToast = vi.fn();
+            const pinToStep = vi.fn();
+            mockUseBasket.mockReturnValue({
+                basketId: 'test-basket',
+                productItems: [{ itemId: 'item1', productId: 'product1', quantity: 1 }],
+                shipments: [{ shipmentId: 'me' }],
+            });
+            mockUseCheckoutContext.mockReturnValue(
+                buildCheckoutContext({ step: defaultSteps.SHIPPING_ADDRESS, pinToStep })
+            );
+            mockShippingAddressFetcherData = null;
+
+            await renderCheckoutPage({
+                showToast: mockShowToast,
+                shippingMethodsMapPromise: Promise.resolve({}),
+            });
+
+            expect(pinToStep).not.toHaveBeenCalled();
+            expect(mockShowToast).not.toHaveBeenCalled();
+        });
+    });
+
+    // Guards the streamed-prefill flash: a returning customer with a complete saved profile
+    // computes to PLACE_ORDER on the post-prefill paint, before the streamed shipping-methods
+    // map resolves. If that saved address turns out undeliverable, the reload-pin would then
+    // bounce them back to Shipping Address — a visible PLACE_ORDER → Shipping Address flash.
+    // Gating Place Order/Payment on `shippingMethodsResolved` holds the section until methods land.
+    describe('Place Order gated on streamed shipping methods (returning shopper)', () => {
+        const addressedBasket = {
+            basketId: 'test-basket',
+            productItems: [{ itemId: 'item1', productId: 'product1', quantity: 1, shipmentId: 'me' }],
+            shipments: [
+                {
+                    shipmentId: 'me',
+                    shippingAddress: {
+                        firstName: 'John',
+                        lastName: 'Doe',
+                        address1: '123 Main St',
+                        city: 'Anytown',
+                        stateCode: 'CA',
+                        postalCode: '12345',
+                        countryCode: 'US',
+                    },
+                },
+            ],
+        };
+
+        test('hides Place Order while the streamed shipping-methods map is still pending', async () => {
+            mockUseBasket.mockReturnValue(addressedBasket);
+            mockUseCheckoutContext.mockReturnValue(buildCheckoutContext({ step: defaultSteps.PLACE_ORDER }));
+
+            // A never-resolving promise keeps `resolvedShippingMethodsMap` undefined, so
+            // `shippingMethodsResolved` stays false and the section must not paint.
+            await renderCheckoutPage({
+                shippingMethodsMapPromise: new Promise(() => {}),
+            });
+
+            expect(screen.queryByRole('button', { name: /Place Order/ })).not.toBeInTheDocument();
+        });
+
+        test('shows Place Order once the streamed map resolves with valid methods', async () => {
+            mockUseBasket.mockReturnValue(addressedBasket);
+            mockUseCheckoutContext.mockReturnValue(buildCheckoutContext({ step: defaultSteps.PLACE_ORDER }));
+
+            await renderCheckoutPage({
+                shippingMethodsMapPromise: Promise.resolve({
+                    me: {
+                        applicableShippingMethods: [{ id: 'standard', name: 'Standard Shipping', price: 5.99 }],
+                        defaultShippingMethodId: 'standard',
+                    },
+                }),
+            });
+
+            await waitFor(() => {
+                expect(screen.getByRole('button', { name: /Place Order/ })).toBeInTheDocument();
+            });
+        });
+
+        test('keeps Place Order hidden when the resolved map has no valid methods for the address', async () => {
+            mockUseBasket.mockReturnValue(addressedBasket);
+            mockUseCheckoutContext.mockReturnValue(buildCheckoutContext({ step: defaultSteps.PLACE_ORDER }));
+
+            await renderCheckoutPage({
+                shippingMethodsMapPromise: Promise.resolve({
+                    me: { applicableShippingMethods: [], defaultShippingMethodId: undefined },
+                }),
+            });
+
+            // Resolved but no valid methods → noShippingMethodsRef keeps the section blocked.
+            await waitFor(() => {
+                expect(screen.queryByRole('button', { name: /Place Order/ })).not.toBeInTheDocument();
+            });
         });
     });
 
@@ -1610,6 +2104,134 @@ describe('CheckoutFormPage', () => {
             await renderCheckoutPage({ emailVerificationEnabled: undefined });
 
             expect(screen.getByTestId('register-customer-checkbox')).toBeInTheDocument();
+        });
+    });
+
+    describe('Loading state live region (a11y)', () => {
+        // Reset mockIsSubmitting after each test in this block. vi.clearAllMocks() clears
+        // call history but not implementations for vi.fn(), so mockImplementation() would
+        // otherwise leak into subsequent tests in the outer describe.
+        afterEach(() => {
+            mockIsSubmitting.mockReturnValue(false);
+        });
+
+        test('status region is empty when no section is submitting', async () => {
+            await renderCheckoutPage();
+
+            const region = screen.getByRole('status');
+            expect(region).toBeInTheDocument();
+            expect(region).toHaveTextContent('');
+        });
+
+        test('status region contains "Saving" when contact section is submitting', async () => {
+            mockIsSubmitting.mockImplementation((key: string) => key === 'contact');
+            await renderCheckoutPage();
+
+            await waitFor(() => {
+                expect(screen.getByRole('status')).toHaveTextContent('Saving');
+            });
+        });
+
+        test('status region contains "Saving" when shipping-address section is submitting', async () => {
+            mockIsSubmitting.mockImplementation((key: string) => key === 'shipping-address');
+            await renderCheckoutPage();
+
+            await waitFor(() => {
+                expect(screen.getByRole('status')).toHaveTextContent('Saving');
+            });
+        });
+
+        test('status region contains "Saving" when shipping-options section is submitting', async () => {
+            mockIsSubmitting.mockImplementation((key: string) => key === 'shipping-options');
+            await renderCheckoutPage();
+
+            await waitFor(() => {
+                expect(screen.getByRole('status')).toHaveTextContent('Saving');
+            });
+        });
+
+        test('status region contains "Saving" when payment section is submitting', async () => {
+            mockIsSubmitting.mockImplementation((key: string) => key === 'payment');
+            await renderCheckoutPage();
+
+            await waitFor(() => {
+                expect(screen.getByRole('status')).toHaveTextContent('Saving');
+            });
+        });
+
+        test('status region clears when submission completes', async () => {
+            mockIsSubmitting.mockImplementation((key: string) => key === 'contact');
+            const { rerender } = await renderCheckoutPage();
+
+            await waitFor(() => {
+                expect(screen.getByRole('status')).toHaveTextContent('Saving');
+            });
+
+            // Submission completes - all sections go back to idle
+            mockIsSubmitting.mockReturnValue(false);
+            act(() => {
+                rerender(<CheckoutFormPage {...defaultProps} />);
+            });
+
+            await waitFor(() => {
+                expect(screen.getByRole('status')).toHaveTextContent('');
+            });
+        });
+
+        test('status region contains "Placing order" when isPlaceOrderPending is true', async () => {
+            mockUseCheckoutContext.mockReturnValue(buildCheckoutContext({ step: defaultSteps.PLACE_ORDER }));
+            mockUseBasket.mockReturnValue({
+                basketId: 'test-basket',
+                productItems: [{ itemId: 'item1', productId: 'product1', quantity: 1 }],
+                paymentInstruments: [],
+            });
+
+            // No payment data getter - falls through to submitPlaceOrder path which sets isPlaceOrderPending
+            mockPaymentFormDataGetter = null;
+
+            await renderCheckoutPage();
+
+            const placeOrderButton = screen.getByRole('button', { name: /Place Order/ });
+            act(() => {
+                fireEvent.click(placeOrderButton);
+            });
+
+            await waitFor(() => {
+                expect(screen.getByRole('status')).toHaveTextContent('Placing order');
+            });
+        });
+
+        test('"Placing order" takes priority over "Saving" when both isPlaceOrderPending and a section is submitting', async () => {
+            // Scenario: user clicks Place Order; isPlaceOrderPending is set synchronously,
+            // then the payment fetcher starts submitting. Both flags are true at the same time.
+            // The status should show "Placing order", not "Saving".
+            mockUseCheckoutContext.mockReturnValue(buildCheckoutContext({ step: defaultSteps.PLACE_ORDER }));
+            mockUseBasket.mockReturnValue({
+                basketId: 'test-basket',
+                productItems: [{ itemId: 'item1', productId: 'product1', quantity: 1 }],
+                paymentInstruments: [],
+            });
+
+            // No payment data - falls through to submitPlaceOrder, sets isPlaceOrderPending=true.
+            mockPaymentFormDataGetter = null;
+
+            const { rerender } = await renderCheckoutPage();
+
+            const placeOrderButton = screen.getByRole('button', { name: /Place Order/ });
+            act(() => {
+                fireEvent.click(placeOrderButton);
+            });
+
+            // isPlaceOrderPending is now true. Simulate a section also saving at the same time.
+            mockIsSubmitting.mockImplementation((key: string) => key === 'payment');
+            act(() => {
+                rerender(<CheckoutFormPage {...defaultProps} />);
+            });
+
+            // "Placing order" must win over "Saving" even when both are true.
+            await waitFor(() => {
+                expect(screen.getByRole('status')).toHaveTextContent('Placing order');
+            });
         });
     });
 
@@ -1699,7 +2321,8 @@ describe('CheckoutFormPage', () => {
             expect(fetchMock).toHaveBeenCalledTimes(2);
             expect(fetchMock.mock.calls[0]?.[0]).toBe('/action/place-order-prepare');
             expect(fetchMock.mock.calls[1]?.[0]).toBe('/action/place-order-finalize');
-            const finalizeFormData = (fetchMock.mock.calls[1]?.[1] as { body: FormData }).body;
+            const finalizeCall = fetchMock.mock.calls[1]?.[1] as { body: FormData };
+            const finalizeFormData = finalizeCall.body;
             expect(finalizeFormData.get('orderNo')).toBe('ORD-9001');
         });
 
@@ -2011,10 +2634,8 @@ describe('CheckoutFormPage', () => {
 
             expect(fetchMock).toHaveBeenCalledTimes(3);
             expect(fetchMock.mock.calls[0]?.[0]).toBe('/resource/update-basket-billing-address');
-            const billingBody = JSON.parse((fetchMock.mock.calls[0]?.[1] as { body: string }).body) as Record<
-                string,
-                unknown
-            >;
+            const billingCall = fetchMock.mock.calls[0]?.[1] as { body: string };
+            const billingBody = JSON.parse(billingCall.body) as Record<string, unknown>;
             expect(billingBody.firstName).toBe('Jane');
             expect(fetchMock.mock.calls[1]?.[0]).toBe('/action/place-order-prepare');
             expect(fetchMock.mock.calls[2]?.[0]).toBe('/action/place-order-finalize');

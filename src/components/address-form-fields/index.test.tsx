@@ -35,6 +35,11 @@ vi.mock('@/lib/address/address-suggestions', () => ({
     processAddressSuggestion: vi.fn(),
 }));
 
+const mockActivate = vi.hoisted(() => vi.fn());
+vi.mock('@/providers/google-maps-context', () => ({
+    useGoogleMaps: () => ({ activate: mockActivate, places: null }),
+}));
+
 // Test form data structure
 interface TestFormData {
     firstName: string;
@@ -233,13 +238,25 @@ describe('AddressFormFields', () => {
             );
         });
 
-        test('sets autocomplete off for address1 field (for autocomplete dropdown)', () => {
+        test('sets autocomplete street-address for address1 field', () => {
             render(<TestWrapper>{(form) => <AddressFormFields form={form} />}</TestWrapper>);
 
-            // Address1 should have autocomplete off to prevent browser autocomplete from conflicting with Google Places
             expect(screen.getByRole('textbox', { name: /address line 1|^address$/i })).toHaveAttribute(
                 'autocomplete',
-                'off'
+                'shipping street-address'
+            );
+        });
+
+        test('sets autocomplete street-address for address1 field with billing prefix', () => {
+            render(
+                <TestBillingWrapper>
+                    {(form) => <AddressFormFields form={form} fieldPrefix="billing" showPhone={false} />}
+                </TestBillingWrapper>
+            );
+
+            expect(screen.getByRole('textbox', { name: /address line 1|^address$/i })).toHaveAttribute(
+                'autocomplete',
+                'billing street-address'
             );
         });
     });
@@ -435,6 +452,32 @@ describe('AddressFormFields', () => {
             const phoneInput = screen.getByPlaceholderText(/\(000\) 000-0000/);
             await user.type(phoneInput, '12345678901234');
             expect(phoneInput).toHaveValue('1234567890');
+        });
+    });
+
+    describe('Google Maps Activation', () => {
+        test('calls activate() when shipping address1 is focused', async () => {
+            const user = userEvent.setup();
+            render(<TestWrapper>{(form) => <AddressFormFields form={form} />}</TestWrapper>);
+
+            const addressInput = screen.getByRole('textbox', { name: /address line 1|^address$/i });
+            await user.click(addressInput);
+
+            expect(mockActivate).toHaveBeenCalled();
+        });
+
+        test('calls activate() when billing address1 is focused', async () => {
+            const user = userEvent.setup();
+            render(
+                <TestBillingWrapper>
+                    {(form) => <AddressFormFields form={form} fieldPrefix="billing" showPhone={false} />}
+                </TestBillingWrapper>
+            );
+
+            const addressInput = screen.getByRole('textbox', { name: /address line 1|^address$/i });
+            await user.click(addressInput);
+
+            expect(mockActivate).toHaveBeenCalled();
         });
     });
 
