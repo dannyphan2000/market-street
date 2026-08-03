@@ -1,0 +1,11 @@
+{
+    "banner": {
+        "approaching": "Dzieli Cię <bold>{{amount}}</bold> od <highlight>{{discount}}</highlight>",
+        "achieved": "Twoje zamówienie kwalifikuje się do <highlight>{{discount}}</highlight>",
+        "progressLabel": "{{merchandiseTotal}} z {{threshold}} do {{discount}}",
+        "fallbackDiscount": {
+            "order": "zniżka",
+            "shipping": "zniżka na dostawę"
+        }
+    }
+}

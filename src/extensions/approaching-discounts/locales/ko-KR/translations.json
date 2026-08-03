@@ -1,0 +1,11 @@
+{
+    "banner": {
+        "approaching": "<highlight>{{discount}}</highlight>까지 <bold>{{amount}}</bold> 남았습니다",
+        "achieved": "주문이 <highlight>{{discount}}</highlight> 대상입니다",
+        "progressLabel": "{{discount}}까지 {{threshold}} 중 {{merchandiseTotal}}",
+        "fallbackDiscount": {
+            "order": "할인",
+            "shipping": "배송비 할인"
+        }
+    }
+}

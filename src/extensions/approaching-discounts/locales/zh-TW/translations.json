@@ -1,0 +1,11 @@
+{
+    "banner": {
+        "approaching": "再消費 <bold>{{amount}}</bold> 即可獲得 <highlight>{{discount}}</highlight>",
+        "achieved": "您的訂單可享有 <highlight>{{discount}}</highlight>",
+        "progressLabel": "已達 {{threshold}} 中的 {{merchandiseTotal}}，距離 {{discount}}",
+        "fallbackDiscount": {
+            "order": "折扣",
+            "shipping": "運費折扣"
+        }
+    }
+}
